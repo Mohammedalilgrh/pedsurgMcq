@@ -6,6 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 import logging
 import os
+import asyncio
 
 # =====================================
 # CONFIG
@@ -13,6 +14,7 @@ import os
 
 BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
 ADMIN_CHANNEL = "@clientpedsurg"  # Your admin channel
+CHATBOT_USERNAME = "@PedSurgIQ"  # Your chatbot username for direct chat
 
 # =====================================
 # TEXTS
@@ -28,8 +30,8 @@ PAYMENT_TEXT = (
     "To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:\n\n"
     "📱 *Zain Cash:* 009647833160006\n"
     "💳 *Master Card:* 3175657935\n\n"
-    "📸 Take a screenshot and send it here:\n"
-    "@PedSurgIQ\n\n"
+    "📸 Take a screenshot and send it to our chatbot:\n"
+    f"{CHATBOT_USERNAME}\n\n"
     "You are ready ✅\n\n"
     "🍀 Good luck and enjoy the challenge 🙏"
 )
@@ -122,18 +124,27 @@ CHAPTERS = [
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command - Single button for both options"""
-    # Single inline keyboard with one row
+    """Handle /start command - Single row with both options"""
     keyboard = [[
         InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("🧠 Flash Cards", callback_data="Flash Cards")
+        InlineKeyboardButton("🧠 Flash Cards", callback_data="Flash_Cards")
     ]]
     
-    await update.message.reply_text(
-        WELCOME_TEXT,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Check if it's a message or callback query
+    if update.message:
+        await update.message.reply_text(
+            WELCOME_TEXT,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(
+            WELCOME_TEXT,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
 async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle when user selects MRCS or Flash Cards"""
@@ -141,25 +152,31 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
     
     # Store selected content type
-    context.user_data["content_type"] = query.data
+    content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
+    context.user_data["content_type"] = content_type
     
-    # Create chapter selection keyboard with pagination
+    # Create chapter selection keyboard
     keyboard = []
-    
-    # Add chapters in rows of 2 for better display
-    for i in range(0, len(CHAPTERS), 2):
+    for i in range(0, len(CHAPTERS), 3):  # 3 buttons per row
         row = []
-        row.append(InlineKeyboardButton(CHAPTERS[i], callback_data=f"ch_{i}"))
-        if i + 1 < len(CHAPTERS):
-            row.append(InlineKeyboardButton(CHAPTERS[i + 1], callback_data=f"ch_{i + 1}"))
-        keyboard.append(row)
+        for j in range(3):
+            if i + j < len(CHAPTERS):
+                chapter_num = i + j + 1
+                chapter_text = f"Ch {chapter_num}"
+                row.append(InlineKeyboardButton(chapter_text, callback_data=f"ch_{i+j}"))
+        if row:
+            keyboard.append(row)
     
-    # Add back button at the end
-    keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="back_start")])
+    # Add navigation buttons
+    keyboard.append([
+        InlineKeyboardButton("⬅ Back", callback_data="back_start")
+    ])
     
     await query.edit_message_text(
-        "📖 *Select a Chapter*\n\n"
-        f"Selected: *{query.data}*",
+        f"📖 *Select a Chapter*\n\n"
+        f"Content Type: *{content_type}*\n"
+        f"Total Chapters: *{len(CHAPTERS)}*\n\n"
+        f"_Click on a chapter number to select:_",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
@@ -176,10 +193,13 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Store chapter info
     context.user_data["chapter"] = chapter
+    context.user_data["chapter_index"] = idx
     
-    # Create keyboard with chat button
+    # Create keyboard with chat button that opens direct chat
     keyboard = [[
-        InlineKeyboardButton("💬 Chat with Admin", callback_data="chat_admin")
+        InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME[1:]}")
+    ], [
+        InlineKeyboardButton("⬅ Back to Chapters", callback_data="back_chapters")
     ]]
     
     # Send payment instructions
@@ -188,36 +208,30 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
+    
+    # Send notification to admin channel
+    await notify_admin(context, query.from_user, content_type, chapter)
 
-async def chat_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle chat with admin request"""
-    query = update.callback_query
-    await query.answer()
-    
-    user = query.from_user
-    user_id = user.id
-    username = f"@{user.username}" if user.username else f"User ID: {user_id}"
-    first_name = user.first_name or ""
-    last_name = user.last_name or ""
-    full_name = f"{first_name} {last_name}".strip()
-    
-    # Get stored data
-    content_type = context.user_data.get("content_type", "Unknown")
-    chapter = context.user_data.get("chapter", "Unknown")
-    
-    # Create admin notification message
-    admin_message = (
-        "🆕 *New Client Request*\n\n"
-        f"👤 *Client:* {full_name}\n"
-        f"📱 *Username:* {username}\n"
-        f"🆔 *User ID:* `{user_id}`\n"
-        f"📚 *Requested:* {content_type}\n"
-        f"📖 *Chapter:* {chapter}\n\n"
-        f"💬 [Click to Chat with Client](tg://user?id={user_id})"
-    )
-    
+async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
+    """Send notification to admin channel"""
     try:
-        # Send to admin channel
+        user_id = user.id
+        username = f"@{user.username}" if user.username else "No username"
+        first_name = user.first_name or ""
+        last_name = user.last_name or ""
+        full_name = f"{first_name} {last_name}".strip() or "No name"
+        
+        admin_message = (
+            "🆕 *New Client Inquiry*\n\n"
+            f"👤 *Name:* {full_name}\n"
+            f"📱 *Username:* {username}\n"
+            f"🆔 *User ID:* `{user_id}`\n"
+            f"📚 *Content Type:* {content_type}\n"
+            f"📖 *Chapter:* {chapter}\n\n"
+            f"💬 [Click to Chat with Client](tg://user?id={user_id})\n"
+            f"🤖 [Go to Chatbot](https://t.me/{CHATBOT_USERNAME[1:]})"
+        )
+        
         await context.bot.send_message(
             chat_id=ADMIN_CHANNEL,
             text=admin_message,
@@ -225,43 +239,38 @@ async def chat_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
         
-        # Confirm to user
-        await query.edit_message_text(
-            "✅ *Request Sent Successfully!*\n\n"
-            "Our admin will contact you shortly to assist with payment.\n"
-            "You can also send payment screenshot to @PedSurgIQ\n\n"
-            "Thank you for your interest! 🙏",
-            parse_mode="Markdown"
-        )
-        
     except Exception as e:
         logging.error(f"Failed to send admin notification: {e}")
-        await query.edit_message_text(
-            "⚠️ *Something went wrong!*\n\n"
-            "Please contact @PedSurgIQ directly with:\n"
-            f"- Your selected chapter: {chapter}\n"
-            f"- Content type: {content_type}\n\n"
-            "We apologize for the inconvenience.",
-            parse_mode="Markdown"
-        )
 
 async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle back to start button"""
     query = update.callback_query
     await query.answer()
+    await start(update, context)
+
+async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle back to chapters button"""
+    query = update.callback_query
+    await query.answer()
+    await content_type_selected(update, context)
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /help command"""
+    help_text = (
+        "🤖 *Pediatric Surgery IQ Bot Help*\n\n"
+        "*/start* - Start the bot and choose content type\n"
+        "*/help* - Show this help message\n\n"
+        "*How to use:*\n"
+        "1. Click /start\n"
+        "2. Choose MRCS or Flash Cards\n"
+        "3. Select a chapter\n"
+        "4. Follow payment instructions\n"
+        "5. Chat with admin for assistance\n\n"
+        f"*Need help?* Contact: {CHATBOT_USERNAME}"
+    )
     
-    # Reset user data
-    context.user_data.clear()
-    
-    # Show start menu again
-    keyboard = [[
-        InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("🧠 Flash Cards", callback_data="Flash Cards")
-    ]]
-    
-    await query.edit_message_text(
-        WELCOME_TEXT,
-        reply_markup=InlineKeyboardMarkup(keyboard),
+    await update.message.reply_text(
+        help_text,
         parse_mode="Markdown"
     )
 
@@ -269,14 +278,24 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors gracefully"""
     logging.error(f"Update {update} caused error {context.error}")
     
-    if update and update.callback_query:
-        try:
+    try:
+        if update and update.callback_query:
             await update.callback_query.message.reply_text(
                 "⚠️ An error occurred. Please try again with /start",
                 parse_mode="Markdown"
             )
-        except:
-            pass
+    except:
+        pass
+
+# =====================================
+# KEEP ALIVE FUNCTION
+# =====================================
+
+async def keep_alive():
+    """Simple keep-alive function for Render"""
+    # This function doesn't do anything but keeps the bot running
+    while True:
+        await asyncio.sleep(300)  # Sleep for 5 minutes
 
 # =====================================
 # MAIN FUNCTION
@@ -297,10 +316,11 @@ def main():
         
         # Add handlers
         application.add_handler(CommandHandler("start", start))
-        application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash Cards)$"))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash_Cards)$"))
         application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
-        application.add_handler(CallbackQueryHandler(chat_admin, pattern="^chat_admin$"))
         application.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
+        application.add_handler(CallbackQueryHandler(back_to_chapters, pattern="^back_chapters$"))
         
         # Add error handler
         application.add_error_handler(error_handler)
@@ -312,7 +332,8 @@ def main():
         application.run_polling(
             allowed_updates=Update.ALL_TYPES,
             drop_pending_updates=True,
-            poll_interval=0.5  # Faster response time
+            poll_interval=0.5,
+            timeout=30
         )
         
     except Exception as e:
@@ -320,35 +341,29 @@ def main():
         raise
 
 # =====================================
-# KEEP-ALIVE FOR RENDER
+# SIMPLE WEB SERVER FOR KEEP-ALIVE
 # =====================================
-# Render requires a web server to keep the app alive
-# We'll use a simple HTTP server in a separate thread
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from aiohttp import web
 import threading
 
-class KeepAliveHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        self.wfile.write(b'Pediatric Surgery IQ Bot is running!')
-    
-    def log_message(self, format, *args):
-        pass  # Disable logging
+async def handle_health_check(request):
+    """Handle health check requests"""
+    return web.Response(text="Pediatric Surgery IQ Bot is running!")
 
-def run_keep_alive():
-    """Run a simple HTTP server to keep Render alive"""
+def run_web_server():
+    """Run a simple web server for keep-alive"""
+    app = web.Application()
+    app.router.add_get('/', handle_health_check)
+    app.router.add_get('/health', handle_health_check)
+    
     port = int(os.environ.get('PORT', 8080))
-    server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
-    print(f"Keep-alive server running on port {port}")
-    server.serve_forever()
+    web.run_app(app, host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
-    # Start keep-alive server in a separate thread
-    keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
-    keep_alive_thread.start()
+    # Start web server in a separate thread
+    web_thread = threading.Thread(target=run_web_server, daemon=True)
+    web_thread.start()
     
     # Start the bot
     main()
