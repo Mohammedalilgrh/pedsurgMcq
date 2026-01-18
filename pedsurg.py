@@ -1,3 +1,7 @@
+# =====================================
+# Pediatric Surgery IQ – Marketing Bot
+# =====================================
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from flask import Flask, request
@@ -117,39 +121,13 @@ CHAPTERS = [
 ]
 
 # =====================================
-# FLASK APP & WEBHOOK SETUP
+# FLASK APP
 # =====================================
 
 app = Flask(__name__)
-application = None
 
-@app.route("/")
-def home():
-    return "✅ Pediatric Surgery IQ Bot is running!"
-
-@app.route("/set_webhook", methods=["GET"])
-def set_webhook():
-    global application
-    if application:
-        webhook_url = f"{WEBHOOK_URL}/webhook"
-        success = application.bot.set_webhook(webhook_url)
-        if success:
-            return f"✅ Webhook set successfully: {webhook_url}"
-        else:
-            return "❌ Failed to set webhook"
-    return "❌ Application not initialized"
-
-@app.route("/webhook", methods=["POST"])
-async def webhook():
-    """Handle incoming updates from Telegram"""
-    if request.headers.get("content-type") == "application/json":
-        json_string = request.get_data().decode("utf-8")
-        update = Update.de_json(json_string, application.bot)
-        
-        if update:
-            await application.update_queue.put(update)
-        return "OK"
-    return "Bad Request", 400
+# Create bot application
+bot_application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 # =====================================
 # BOT HANDLERS
@@ -246,56 +224,85 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Sorry, I didn't understand that command. Use /start to begin."
         )
 
+# Setup bot handlers
+bot_application.add_handler(CommandHandler("start", start))
+bot_application.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
+bot_application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
+bot_application.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
+bot_application.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
+bot_application.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
+bot_application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+
 # =====================================
-# MAIN
+# FLASK ROUTES
 # =====================================
 
-def setup_handlers(app_bot):
-    """Setup all bot handlers"""
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
-    app_bot.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
-    app_bot.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
-    app_bot.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
-    app_bot.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
-    
-    # Handle unknown commands
-    app_bot.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+@app.route("/")
+def home():
+    return "✅ Pediatric Surgery IQ Bot is running! Send /start on Telegram."
 
-def main():
-    global application
-    
+@app.route("/set_webhook", methods=["GET"])
+def set_webhook():
+    """Set webhook for Telegram bot"""
+    webhook_url = f"{WEBHOOK_URL}/webhook"
+    success = bot_application.bot.set_webhook(webhook_url)
+    if success:
+        return f"✅ Webhook set successfully to: {webhook_url}"
+    else:
+        return "❌ Failed to set webhook"
+
+@app.route("/remove_webhook", methods=["GET"])
+def remove_webhook():
+    """Remove webhook (use polling for testing)"""
+    success = bot_application.bot.delete_webhook()
+    if success:
+        return "✅ Webhook removed successfully"
+    else:
+        return "❌ Failed to remove webhook"
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    """Handle incoming updates from Telegram"""
+    update = Update.de_json(request.get_json(), bot_application.bot)
+    bot_application.update_queue.put_nowait(update)
+    return "OK"
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Health check endpoint for Render"""
+    return "OK", 200
+
+# =====================================
+# START BOT
+# =====================================
+
+def start_bot():
+    """Initialize and start the bot"""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
     logger = logging.getLogger(__name__)
+    logger.info("Starting Pediatric Surgery IQ Bot...")
     
-    try:
-        # Create bot application
-        application = ApplicationBuilder().token(BOT_TOKEN).build()
-        
-        # Setup handlers
-        setup_handlers(application)
-        
-        logger.info("Starting bot application...")
-        
-        # For local testing, you can use polling
-        # application.run_polling()
-        
-        # For production, Flask will handle the app.run()
-        return application
-        
-    except Exception as e:
-        logger.error(f"Failed to start bot: {e}")
-        raise
+    # Initialize bot (this starts the update queue)
+    bot_application.initialize()
+    
+    # Set webhook automatically
+    webhook_url = f"{WEBHOOK_URL}/webhook"
+    bot_application.bot.set_webhook(webhook_url)
+    logger.info(f"Webhook set to: {webhook_url}")
+    
+    logger.info("Bot is ready and waiting for updates...")
+
+# =====================================
+# MAIN ENTRY POINT
+# =====================================
 
 if __name__ == "__main__":
-    # Initialize bot
-    bot_app = main()
+    # Start the bot
+    start_bot()
     
-    # Start Flask app
-    logger = logging.getLogger(__name__)
-    logger.info(f"Starting Flask app on port {PORT}")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    # Start Flask server
+    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
