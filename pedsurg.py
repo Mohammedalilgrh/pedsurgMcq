@@ -3,9 +3,11 @@
 # =====================================
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 from flask import Flask, request
 import logging
+import threading
+import time
 import os
 
 # =====================================
@@ -14,8 +16,7 @@ import os
 
 BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
 ADMIN_CHANNEL = "@clientpedsurg"
-WEBHOOK_URL = "https://pedsurgmcq.onrender.com"  # Your Render URL
-PORT = int(os.environ.get('PORT', 8080))  # Render provides PORT
+PORT = int(os.environ.get('PORT', 8080))
 
 # =====================================
 # TEXTS
@@ -121,16 +122,21 @@ CHAPTERS = [
 ]
 
 # =====================================
-# FLASK APP
+# FLASK APP (KEEP-ALIVE ONLY)
 # =====================================
 
 app = Flask(__name__)
 
-# Create bot application
-bot_application = ApplicationBuilder().token(BOT_TOKEN).build()
+@app.route("/")
+def home():
+    return "✅ Pediatric Surgery IQ Bot is running! Bot is in POLLING mode."
+
+@app.route("/health")
+def health():
+    return "OK", 200
 
 # =====================================
-# BOT HANDLERS
+# BOT LOGIC (USING POLLING)
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -138,19 +144,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📝 MCQs", callback_data="MCQs")],
         [InlineKeyboardButton("📚 Flash Cards", callback_data="Flash Cards")]
     ]
-    
-    if update.message:
-        await update.message.reply_text(
-            WELCOME_TEXT,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-    elif update.callback_query:
-        await update.callback_query.message.reply_text(
-            WELCOME_TEXT,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
+    await update.message.reply_text(
+        WELCOME_TEXT,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
 
 async def show_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -210,99 +208,68 @@ async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def back_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await start(update, context)
+    
+    keyboard = [
+        [InlineKeyboardButton("📝 MCQs", callback_data="MCQs")],
+        [InlineKeyboardButton("📚 Flash Cards", callback_data="Flash Cards")]
+    ]
+    
+    await query.edit_message_text(
+        WELCOME_TEXT,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
 
 async def back_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     await show_chapters(update, context)
 
-async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle unknown commands"""
-    if update.message:
-        await update.message.reply_text(
-            "Sorry, I didn't understand that command. Use /start to begin."
-        )
+def run_flask():
+    """Run Flask in a separate thread"""
+    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
-# Setup bot handlers
-bot_application.add_handler(CommandHandler("start", start))
-bot_application.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
-bot_application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
-bot_application.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
-bot_application.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
-bot_application.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
-bot_application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
-
-# =====================================
-# FLASK ROUTES
-# =====================================
-
-@app.route("/")
-def home():
-    return "✅ Pediatric Surgery IQ Bot is running! Send /start on Telegram."
-
-@app.route("/set_webhook", methods=["GET"])
-def set_webhook():
-    """Set webhook for Telegram bot"""
-    webhook_url = f"{WEBHOOK_URL}/webhook"
-    success = bot_application.bot.set_webhook(webhook_url)
-    if success:
-        return f"✅ Webhook set successfully to: {webhook_url}"
-    else:
-        return "❌ Failed to set webhook"
-
-@app.route("/remove_webhook", methods=["GET"])
-def remove_webhook():
-    """Remove webhook (use polling for testing)"""
-    success = bot_application.bot.delete_webhook()
-    if success:
-        return "✅ Webhook removed successfully"
-    else:
-        return "❌ Failed to remove webhook"
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    """Handle incoming updates from Telegram"""
-    update = Update.de_json(request.get_json(), bot_application.bot)
-    bot_application.update_queue.put_nowait(update)
-    return "OK"
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    """Health check endpoint for Render"""
-    return "OK", 200
-
-# =====================================
-# START BOT
-# =====================================
-
-def start_bot():
-    """Initialize and start the bot"""
+def run_bot():
+    """Run Telegram bot with polling"""
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
     logger = logging.getLogger(__name__)
-    logger.info("Starting Pediatric Surgery IQ Bot...")
     
-    # Initialize bot (this starts the update queue)
-    bot_application.initialize()
+    # Create bot application
+    app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # Add handlers
+    app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
+    app_bot.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
+    app_bot.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
+    app_bot.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
+    app_bot.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
+
+    logger.info("Starting Telegram bot in POLLING mode...")
     
-    # Set webhook automatically
-    webhook_url = f"{WEBHOOK_URL}/webhook"
-    bot_application.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook set to: {webhook_url}")
-    
-    logger.info("Bot is ready and waiting for updates...")
+    # Run bot with polling
+    app_bot.run_polling(allowed_updates=Update.ALL_TYPES)
 
 # =====================================
-# MAIN ENTRY POINT
+# MAIN
 # =====================================
+
+def main():
+    """Start both Flask and Bot"""
+    
+    # Start Flask in a separate thread (for keep-alive)
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    # Wait a moment for Flask to start
+    time.sleep(2)
+    
+    # Start the bot (this runs in main thread)
+    run_bot()
 
 if __name__ == "__main__":
-    # Start the bot
-    start_bot()
-    
-    # Start Flask server
-    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
+    main()
