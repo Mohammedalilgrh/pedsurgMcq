@@ -1,3 +1,6 @@
+I can see the issue! You want the buttons to appear inside the message input area like in your image. The problem is that you're using Markdown formatting which can interfere. Let me fix it:
+
+```python
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
