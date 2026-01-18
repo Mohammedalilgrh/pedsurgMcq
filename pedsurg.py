@@ -4,10 +4,7 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from flask import Flask, request
 import logging
-import threading
-import time
 import os
 
 # =====================================
@@ -15,8 +12,7 @@ import os
 # =====================================
 
 BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
-ADMIN_CHANNEL = "@clientpedsurg"
-PORT = int(os.environ.get('PORT', 8080))
+ADMIN_CHANNEL = "@clientpedsurg"  # Your admin channel
 
 # =====================================
 # TEXTS
@@ -24,22 +20,22 @@ PORT = int(os.environ.get('PORT', 8080))
 
 WELCOME_TEXT = (
     "👋 *Welcome to Pediatric Surgery IQ*\n\n"
-    "Choose what you want to study:"
+    "What would you like to study today?"
 )
 
 PAYMENT_TEXT = (
     "💳 *Payment Required*\n\n"
-    "To receive content for this chapter, send *5,000 IQD* to:\n\n"
-    "📱 *Zain Cash:* 009647833160006\n\n"
+    "To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:\n\n"
+    "📱 *Zain Cash:* 009647833160006\n"
     "💳 *Master Card:* 3175657935\n\n"
-    "📸 Take a screenshot and send it to:\n"
+    "📸 Take a screenshot and send it here:\n"
     "@PedSurgIQ\n\n"
     "You are ready ✅\n\n"
     "🍀 Good luck and enjoy the challenge 🙏"
 )
 
 # =====================================
-# CHAPTERS (CLEAN & UNIQUE)
+# CHAPTERS
 # =====================================
 
 CHAPTERS = [
@@ -122,97 +118,146 @@ CHAPTERS = [
 ]
 
 # =====================================
-# FLASK APP (KEEP-ALIVE ONLY)
-# =====================================
-
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "✅ Pediatric Surgery IQ Bot is running! Bot is in POLLING mode."
-
-@app.route("/health")
-def health():
-    return "OK", 200
-
-# =====================================
-# BOT LOGIC (USING POLLING)
+# BOT HANDLERS
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("📝 MCQs", callback_data="MCQs")],
-        [InlineKeyboardButton("📚 Flash Cards", callback_data="Flash Cards")]
-    ]
+    """Handle /start command - Single button for both options"""
+    # Single inline keyboard with one row
+    keyboard = [[
+        InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("🧠 Flash Cards", callback_data="Flash Cards")
+    ]]
+    
     await update.message.reply_text(
         WELCOME_TEXT,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
-async def show_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle when user selects MRCS or Flash Cards"""
     query = update.callback_query
     await query.answer()
-
-    context.user_data["type"] = query.data
-
-    keyboard = [[InlineKeyboardButton(ch, callback_data=f"ch_{i}")]
-                for i, ch in enumerate(CHAPTERS)]
-    keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="back_home")])
-
+    
+    # Store selected content type
+    context.user_data["content_type"] = query.data
+    
+    # Create chapter selection keyboard with pagination
+    keyboard = []
+    
+    # Add chapters in rows of 2 for better display
+    for i in range(0, len(CHAPTERS), 2):
+        row = []
+        row.append(InlineKeyboardButton(CHAPTERS[i], callback_data=f"ch_{i}"))
+        if i + 1 < len(CHAPTERS):
+            row.append(InlineKeyboardButton(CHAPTERS[i + 1], callback_data=f"ch_{i + 1}"))
+        keyboard.append(row)
+    
+    # Add back button at the end
+    keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="back_start")])
+    
     await query.edit_message_text(
-        "📖 *Select a Chapter*",
+        "📖 *Select a Chapter*\n\n"
+        f"Selected: *{query.data}*",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
 async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle when user selects a chapter"""
     query = update.callback_query
     await query.answer()
-
+    
+    # Get chapter index and info
     idx = int(query.data.split("_")[1])
     chapter = CHAPTERS[idx]
+    content_type = context.user_data.get("content_type", "Content")
+    
+    # Store chapter info
     context.user_data["chapter"] = chapter
-
-    keyboard = [
-        [InlineKeyboardButton("💬 Contact Us", callback_data="contact")],
-        [InlineKeyboardButton("⬅ Back", callback_data="back_chapters")]
-    ]
-
+    
+    # Create keyboard with chat button
+    keyboard = [[
+        InlineKeyboardButton("💬 Chat with Admin", callback_data="chat_admin")
+    ]]
+    
+    # Send payment instructions
     await query.edit_message_text(
-        f"📌 *{chapter}*\n\n{PAYMENT_TEXT}",
+        PAYMENT_TEXT.format(content_type=content_type, chapter=chapter),
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
 
-async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    user = query.from_user
-    username = f"@{user.username}" if user.username else "No username"
-
-    msg = (
-        "📩 *New Interested Client*\n\n"
-        f"👤 User: {username}\n"
-        f"📘 Type: {context.user_data.get('type')}\n"
-        f"📖 Chapter: {context.user_data.get('chapter')}"
-    )
-
-    await context.bot.send_message(ADMIN_CHANNEL, msg, parse_mode="Markdown")
-
-    await query.edit_message_text(
-        "✅ Your request has been sent.\nWe will contact you shortly."
-    )
-
-async def back_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def chat_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle chat with admin request"""
     query = update.callback_query
     await query.answer()
     
-    keyboard = [
-        [InlineKeyboardButton("📝 MCQs", callback_data="MCQs")],
-        [InlineKeyboardButton("📚 Flash Cards", callback_data="Flash Cards")]
-    ]
+    user = query.from_user
+    user_id = user.id
+    username = f"@{user.username}" if user.username else f"User ID: {user_id}"
+    first_name = user.first_name or ""
+    last_name = user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
+    
+    # Get stored data
+    content_type = context.user_data.get("content_type", "Unknown")
+    chapter = context.user_data.get("chapter", "Unknown")
+    
+    # Create admin notification message
+    admin_message = (
+        "🆕 *New Client Request*\n\n"
+        f"👤 *Client:* {full_name}\n"
+        f"📱 *Username:* {username}\n"
+        f"🆔 *User ID:* `{user_id}`\n"
+        f"📚 *Requested:* {content_type}\n"
+        f"📖 *Chapter:* {chapter}\n\n"
+        f"💬 [Click to Chat with Client](tg://user?id={user_id})"
+    )
+    
+    try:
+        # Send to admin channel
+        await context.bot.send_message(
+            chat_id=ADMIN_CHANNEL,
+            text=admin_message,
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+        
+        # Confirm to user
+        await query.edit_message_text(
+            "✅ *Request Sent Successfully!*\n\n"
+            "Our admin will contact you shortly to assist with payment.\n"
+            "You can also send payment screenshot to @PedSurgIQ\n\n"
+            "Thank you for your interest! 🙏",
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logging.error(f"Failed to send admin notification: {e}")
+        await query.edit_message_text(
+            "⚠️ *Something went wrong!*\n\n"
+            "Please contact @PedSurgIQ directly with:\n"
+            f"- Your selected chapter: {chapter}\n"
+            f"- Content type: {content_type}\n\n"
+            "We apologize for the inconvenience.",
+            parse_mode="Markdown"
+        )
+
+async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle back to start button"""
+    query = update.callback_query
+    await query.answer()
+    
+    # Reset user data
+    context.user_data.clear()
+    
+    # Show start menu again
+    keyboard = [[
+        InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("🧠 Flash Cards", callback_data="Flash Cards")
+    ]]
     
     await query.edit_message_text(
         WELCOME_TEXT,
@@ -220,56 +265,90 @@ async def back_home(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-async def back_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await show_chapters(update, context)
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors gracefully"""
+    logging.error(f"Update {update} caused error {context.error}")
+    
+    if update and update.callback_query:
+        try:
+            await update.callback_query.message.reply_text(
+                "⚠️ An error occurred. Please try again with /start",
+                parse_mode="Markdown"
+            )
+        except:
+            pass
 
-def run_flask():
-    """Run Flask in a separate thread"""
-    app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
+# =====================================
+# MAIN FUNCTION
+# =====================================
 
-def run_bot():
-    """Run Telegram bot with polling"""
+def main():
+    """Start the bot"""
+    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
     logger = logging.getLogger(__name__)
     
-    # Create bot application
-    app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Add handlers
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
-    app_bot.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
-    app_bot.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
-    app_bot.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
-    app_bot.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
-
-    logger.info("Starting Telegram bot in POLLING mode...")
-    
-    # Run bot with polling
-    app_bot.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        # Create application
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
+        
+        # Add handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash Cards)$"))
+        application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
+        application.add_handler(CallbackQueryHandler(chat_admin, pattern="^chat_admin$"))
+        application.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
+        
+        # Add error handler
+        application.add_error_handler(error_handler)
+        
+        logger.info("Starting Pediatric Surgery IQ Bot...")
+        logger.info("Bot is running in polling mode...")
+        
+        # Start polling
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+            poll_interval=0.5  # Faster response time
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}")
+        raise
 
 # =====================================
-# MAIN
+# KEEP-ALIVE FOR RENDER
 # =====================================
+# Render requires a web server to keep the app alive
+# We'll use a simple HTTP server in a separate thread
 
-def main():
-    """Start both Flask and Bot"""
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+
+class KeepAliveHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b'Pediatric Surgery IQ Bot is running!')
     
-    # Start Flask in a separate thread (for keep-alive)
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    # Wait a moment for Flask to start
-    time.sleep(2)
-    
-    # Start the bot (this runs in main thread)
-    run_bot()
+    def log_message(self, format, *args):
+        pass  # Disable logging
+
+def run_keep_alive():
+    """Run a simple HTTP server to keep Render alive"""
+    port = int(os.environ.get('PORT', 8080))
+    server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
+    print(f"Keep-alive server running on port {port}")
+    server.serve_forever()
 
 if __name__ == "__main__":
+    # Start keep-alive server in a separate thread
+    keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
+    keep_alive_thread.start()
+    
+    # Start the bot
     main()
