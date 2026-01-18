@@ -3,17 +3,19 @@
 # =====================================
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from flask import Flask
-import threading
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from flask import Flask, request
 import logging
+import os
 
 # =====================================
 # CONFIG
 # =====================================
 
-BOT_TOKEN = "8408158472:AAFywjucuPlyYeRNJ-xbFTowMVJNta6i3e8"
+BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
 ADMIN_CHANNEL = "@clientpedsurg"
+WEBHOOK_URL = "https://pedsurgmcq.onrender.com"  # Your Render URL
+PORT = int(os.environ.get('PORT', 8080))  # Render provides PORT
 
 # =====================================
 # TEXTS
@@ -119,20 +121,42 @@ CHAPTERS = [
 ]
 
 # =====================================
-# FLASK KEEP ALIVE
+# FLASK APP & WEBHOOK SETUP
 # =====================================
 
 app = Flask(__name__)
+application = None
 
 @app.route("/")
 def home():
-    return "PedSurg IQ Bot is running."
+    return "✅ Pediatric Surgery IQ Bot is running!"
 
-def keep_alive():
-    app.run(host="0.0.0.0", port=8080)
+@app.route("/set_webhook", methods=["GET"])
+def set_webhook():
+    global application
+    if application:
+        webhook_url = f"{WEBHOOK_URL}/webhook"
+        success = application.bot.set_webhook(webhook_url)
+        if success:
+            return f"✅ Webhook set successfully: {webhook_url}"
+        else:
+            return "❌ Failed to set webhook"
+    return "❌ Application not initialized"
+
+@app.route("/webhook", methods=["POST"])
+async def webhook():
+    """Handle incoming updates from Telegram"""
+    if request.headers.get("content-type") == "application/json":
+        json_string = request.get_data().decode("utf-8")
+        update = Update.de_json(json_string, application.bot)
+        
+        if update:
+            await application.update_queue.put(update)
+        return "OK"
+    return "Bad Request", 400
 
 # =====================================
-# BOT LOGIC
+# BOT HANDLERS
 # =====================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -140,11 +164,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("📝 MCQs", callback_data="MCQs")],
         [InlineKeyboardButton("📚 Flash Cards", callback_data="Flash Cards")]
     ]
-    await update.message.reply_text(
-        WELCOME_TEXT,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+    
+    if update.message:
+        await update.message.reply_text(
+            WELCOME_TEXT,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(
+            WELCOME_TEXT,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
 async def show_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -211,25 +243,63 @@ async def back_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await show_chapters(update, context)
 
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle unknown commands"""
+    if update.message:
+        await update.message.reply_text(
+            "Sorry, I didn't understand that command. Use /start to begin."
+        )
+
 # =====================================
 # MAIN
 # =====================================
 
-def main():
-    logging.basicConfig(level=logging.INFO)
-
-    threading.Thread(target=keep_alive).start()
-
-    app_bot = ApplicationBuilder().token(BOT_TOKEN).build()
-
+def setup_handlers(app_bot):
+    """Setup all bot handlers"""
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(show_chapters, pattern="^(MCQs|Flash Cards)$"))
     app_bot.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
     app_bot.add_handler(CallbackQueryHandler(contact, pattern="^contact$"))
     app_bot.add_handler(CallbackQueryHandler(back_home, pattern="^back_home$"))
     app_bot.add_handler(CallbackQueryHandler(back_chapters, pattern="^back_chapters$"))
+    
+    # Handle unknown commands
+    app_bot.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-    app_bot.run_polling()
+def main():
+    global application
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Create bot application
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
+        
+        # Setup handlers
+        setup_handlers(application)
+        
+        logger.info("Starting bot application...")
+        
+        # For local testing, you can use polling
+        # application.run_polling()
+        
+        # For production, Flask will handle the app.run()
+        return application
+        
+    except Exception as e:
+        logger.error(f"Failed to start bot: {e}")
+        raise
 
 if __name__ == "__main__":
-    main()
+    # Initialize bot
+    bot_app = main()
+    
+    # Start Flask app
+    logger = logging.getLogger(__name__)
+    logger.info(f"Starting Flask app on port {PORT}")
+    app.run(host="0.0.0.0", port=PORT, debug=False)
