@@ -1,5 +1,5 @@
 from flask import Flask
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import logging
 import threading
@@ -36,7 +36,7 @@ CHATBOT_USERNAME = "PedSurgIQ"
 WELCOME_TEXT = "👋 *Welcome to Pediatric Surgery IQ*\n\nWhat would you like to study today?"
 
 # =====================================
-# ALL 76 CHAPTERS (FULL NAMES)
+# ALL 76 CHAPTERS
 # =====================================
 CHAPTERS = [
     "Chapter 1 – Physiology of the Newborn",
@@ -115,37 +115,27 @@ CHAPTERS = [
     "Chapter 76 – Global Pediatric Surgery and Humanitarian Efforts"
 ]
 
-# Special commands
 BACK_COMMAND = "🔙 Back"
 MRCS_OPTION = "📘 MRCS"
 FLASH_OPTION = "🧩 Flash Cards"
 
 # =====================================
-# BOT HANDLERS
+# HANDLERS
 # =====================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Main menu keyboard
     keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard,
-        one_time_keyboard=True,
-        resize_keyboard=True
-    )
-    await update.message.reply_text(
-        WELCOME_TEXT,
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user_data = context.user_data
 
-    # Main menu selection
     if text == MRCS_OPTION or text == FLASH_OPTION:
         content_type = "MRCS" if text == MRCS_OPTION else "Flash Cards"
         user_data["content_type"] = content_type
-        # Build chapter keyboard (1 per row for readability, or 2 if you prefer)
+
+        # Build keyboard with full chapter names (2 per row)
         keyboard = []
         for i in range(0, len(CHAPTERS), 2):
             row = [CHAPTERS[i]]
@@ -154,32 +144,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append(row)
         keyboard.append([BACK_COMMAND])
 
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            one_time_keyboard=True,
-            resize_keyboard=True
-        )
-        await update.message.reply_text(
-            f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*\n\n👇 Tap a chapter below:",
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text(            f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*\n\n👇 Tap a chapter below:",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
 
-    # Back to main menu
     elif text == BACK_COMMAND:
         keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            one_time_keyboard=True,
-            resize_keyboard=True
-        )
-        await update.message.reply_text(
-            "🔙 Back to main menu.\n\n" + WELCOME_TEXT,
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("🔙 Back to main menu.\n\n" + WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
 
-    # Chapter selected (full name match)
     elif text in CHAPTERS:
         content_type = user_data.get("content_type", "Content")
         chapter = text
@@ -195,33 +170,22 @@ To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
 @{CHATBOT_USERNAME}
 
 You are ready ✅
+
 🍀 Good luck and enjoy the challenge 🙏"""
 
-        # Send payment instructions (no keyboard — let user contact manually)
         await update.message.reply_text(payment_text, parse_mode="Markdown")
-
-        # Notify admin
         await notify_admin(context, update.message.from_user, content_type, chapter)
 
     else:
-        # Unknown input
         keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-        reply_markup = ReplyKeyboardMarkup(
-            keyboard,
-            one_time_keyboard=True,
-            resize_keyboard=True
-        )
-        await update.message.reply_text(
-            "❓ I didn't understand that. Please choose an option below:",
-            reply_markup=reply_markup
-        )
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+        await update.message.reply_text("❓ Please choose an option below:", reply_markup=reply_markup)
 
 async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
     try:
         user_id = user.id
         username = f"@{user.username}" if user.username else "No username"
         name = user.first_name or "No name"
-
         admin_message = f"""🆕 New Client Inquiry
 
 👤 Name: {name}
@@ -230,40 +194,25 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
 📚 Type: {content_type}
 📖 Chapter: {chapter}
 
-💬 [Chat with Client](tg://user?id={user_id})"""
-
-        await context.bot.send_message(
-            chat_id=ADMIN_CHANNEL,
-            text=admin_message,
-            parse_mode="Markdown"
-        )
+💬 [Chat with Client](tg://user?id={user_id})"""        await context.bot.send_message(chat_id=ADMIN_CHANNEL, text=admin_message, parse_mode="Markdown")
     except Exception as e:
         print(f"Admin notification error: {e}")
 
 # =====================================
-# BOT SETUP
+# SETUP & RUN
 # =====================================
-def setup_bot():    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO
-    )
+def setup_bot():
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     application = Application.builder().token(BOT_TOKEN).build()
-
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
     return application
 
-# =====================================
-# MAIN
-# =====================================
 def main():
     print("🚀 Starting Pediatric Surgery IQ Bot...")
-
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     time.sleep(3)
-
     application = setup_bot()
     print("🤖 Bot is running with bottom keyboard...")
     application.run_polling(drop_pending_updates=True)
