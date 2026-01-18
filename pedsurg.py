@@ -1,7 +1,3 @@
-# =====================================
-# Pediatric Surgery IQ – Marketing Bot
-# =====================================
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from flask import Flask, request
