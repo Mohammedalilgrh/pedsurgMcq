@@ -12,7 +12,7 @@ import logging
 # CONFIG
 # =====================================
 
-BOT_TOKEN = "7781107052:AAFZvMWqI5Nq4Rbnlq1AAOQbRHrXYDk2Y6M"
+BOT_TOKEN = "8408158472:AAFywjucuPlyYeRNJ-xbFTowMVJNta6i3e8"
 ADMIN_CHANNEL = "@clientpedsurg"
 
 # =====================================
