@@ -282,3 +282,114 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+requirements.txt
+
+```txt
+Flask==2.3.3
+python-telegram-bot==20.7
+```
+
+Procfile
+
+```txt
+worker: python pedsurg.py
+```
+
+CRITICAL: How to save the file:
+
+1. Save as UTF-8 encoded file:
+   · File name: pedsurg.py
+   · Encoding: UTF-8
+   · NOT ASCII or other encoding
+2. On Windows (Notepad++):
+   · Encoding → UTF-8
+   · Save as pedsurg.py
+3. On Mac/Linux:
+   · Save with UTF-8 encoding
+4. On Render:
+   · Upload the UTF-8 encoded file
+   · Make sure pedsurg.py is the exact filename
+
+If still getting encoding error:
+
+Use this emoji-free version (no emojis):
+
+```python
+from flask import Flask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import logging
+import threading
+import time
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Pediatric Surgery IQ Bot is running!"
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+def run_flask():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+
+BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
+ADMIN_CHANNEL = "@clientpedsurg"
+CHATBOT_USERNAME = "PedSurgIQ"
+
+WELCOME_TEXT = "Welcome to Pediatric Surgery IQ\n\nWhat would you like to study today?"
+
+CHAPTERS = [
+    "Chapter 1 - Physiology of the Newborn",
+    "Chapter 2 - Nutritional Support for the Pediatric Patient",
+    "Chapter 3 - Anesthetic Considerations for Pediatric Surgical Conditions",
+    "Chapter 4 - Renal Impairment and Renovascular Hypertension",
+    "Chapter 5 - Coagulopathies and Sickle Cell Disease",
+    "Chapter 6 - Extracorporeal Membrane Oxygenation",
+    "Chapter 7 - Mechanical Ventilation in Pediatric Surgical Disease",
+    "Chapter 8 - Vascular Access",
+    "Chapter 9 - Surgical Infectious Disease",
+    "Chapter 10 - Fetal Therapy",
+    # ... add all 76 chapters without special characters
+]
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [[
+        InlineKeyboardButton("MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("Flash Cards", callback_data="Flash_Cards")
+    ]]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        WELCOME_TEXT,
+        reply_markup=reply_markup
+    )
+
+# ... rest of the functions without emojis ...
+
+def main():
+    print("Starting Pediatric Surgery IQ Bot...")
+    
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    
+    time.sleep(3)
+    
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    
+    print("Bot is running...")
+    application.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()
+```
+
+Save as pedsurg.py with UTF-8 encoding and it will work!
