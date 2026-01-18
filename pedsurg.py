@@ -1,27 +1,7 @@
-from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import logging
-import threading
-import time
-import os
-
-# =====================================
-# FLASK APP FOR KEEP-ALIVE
-# =====================================
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "✅ Pediatric Surgery IQ Bot is running!"
-
-@app.route('/health')
-def health():
-    return "OK", 200
-
-def run_flask():
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+import asyncio
 
 # =====================================
 # CONFIG
@@ -139,7 +119,7 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
     content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
     context.user_data["content_type"] = content_type
     
-    # Create chapter buttons (4 per row) for better display
+    # Create chapter buttons (4 per row)
     keyboard = []
     for i in range(0, len(CHAPTERS), 4):
         row = []
@@ -150,7 +130,6 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
         if row:
             keyboard.append(row)
     
-    # Add navigation and back button
     keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="back_start")])
     
     await query.edit_message_text(
@@ -167,7 +146,6 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapter = CHAPTERS[idx]
     content_type = context.user_data.get("content_type", "Content")
     
-    # Payment text
     payment_text = f"""💳 *Payment Required*
 
 To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
@@ -182,7 +160,6 @@ You are ready ✅
 
 🍀 Good luck and enjoy the challenge 🙏"""
     
-    # Keyboard with direct chat button - INLINE KEYBOARD (appears below message)
     keyboard = [[
         InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME}")
     ], [
@@ -195,7 +172,6 @@ You are ready ✅
         parse_mode="Markdown"
     )
     
-    # Notify admin
     await notify_admin(context, query.from_user, content_type, chapter)
 
 async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
@@ -242,112 +218,24 @@ async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await content_type_selected(update, context)
 
-# =====================================
-# BOT SETUP FUNCTION
-# =====================================
-def setup_bot():
+def main():
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
     
-    # Create bot
+    print("🤖 Starting Pediatric Surgery IQ Bot...")
+    
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash_Cards)$"))
     application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
     application.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
     application.add_handler(CallbackQueryHandler(back_to_chapters, pattern="^back_chapters$"))
     
-    return application
-
-# =====================================
-# MAIN FUNCTION
-# =====================================
-def main():
-    print("🚀 Starting Pediatric Surgery IQ Bot...")
-    print(f"📚 Total Chapters: {len(CHAPTERS)}")
-    
-    # Start Flask in background thread
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    # Wait for Flask to start
-    time.sleep(3)
-    
-    # Setup and run bot
-    application = setup_bot()
-    print("🤖 Bot is running...")
-    application.run_polling(
-        drop_pending_updates=True,
-        poll_interval=0.5,
-        timeout=30,
-        allowed_updates=Update.ALL_TYPES
-    )
+    print("✅ Bot is ready! Press Ctrl+C to stop.")
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
-```
-
-requirements.txt
-
-```txt
-Flask==2.3.3
-python-telegram-bot==20.7
-```
-
-Procfile
-
-```txt
-worker: python app.py
-```
-
-IMPORTANT NOTES:
-
-1. Your code ALREADY has inline keyboards - InlineKeyboardButton and InlineKeyboardMarkup create buttons that appear INSIDE the chat input area, not on screen.
-2. How Telegram inline keyboards work:
-   · Buttons appear below the message
-   · They're inside the chat interface
-   · Users click them directly in the chat
-   · This is the standard and smoothest Telegram bot interface
-3. What users will see:
-   ```
-   👋 Welcome to Pediatric Surgery IQ
-   
-   What would you like to study today?
-   
-   [📘 MRCS] [🧠 Flash Cards]  ← These appear BELOW the message, inside chat
-   ```
-4. After clicking MRCS/Flash Cards:
-   ```
-   📖 Select a Chapter
-   
-   Content Type: MRCS
-   Total Chapters: 76
-   
-   [1] [2] [3] [4]    ← Chapter numbers as inline buttons
-   [5] [6] [7] [8]
-   ...
-   [⬅ Back]           ← Back button as inline button
-   ```
-5. After selecting a chapter:
-   ```
-   💳 Payment Required
-   
-   To receive MRCS about Chapter 1...
-   
-   [💬 Chat with Admin]    ← Direct chat button as inline button
-   [⬅ Back to Chapters]   ← Back button as inline button
-   ```
-
-The buttons are already inside the chat input area! This is exactly what you asked for - the smoothest possible interface with buttons appearing below messages, not on screen.
-
-To deploy:
-
-1. Upload app.py, requirements.txt, and Procfile to Render
-2. Create as Background Worker
-3. Deploy and test with /start
-
-Your bot will work perfectly with all 76 chapters and inline keyboards!
