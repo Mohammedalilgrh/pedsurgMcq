@@ -1,6 +1,6 @@
 from flask import Flask
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 import logging
 import threading
 import time
@@ -36,7 +36,7 @@ CHATBOT_USERNAME = "PedSurgIQ"
 WELCOME_TEXT = "👋 *Welcome to Pediatric Surgery IQ*\n\nWhat would you like to study today?"
 
 # =====================================
-# ALL 76 CHAPTERS
+# ALL 76 CHAPTERS (FULL NAMES)
 # =====================================
 CHAPTERS = [
     "Chapter 1 – Physiology of the Newborn",
@@ -115,52 +115,76 @@ CHAPTERS = [
     "Chapter 76 – Global Pediatric Surgery and Humanitarian Efforts"
 ]
 
+# Special commands
+BACK_COMMAND = "🔙 Back"
+MRCS_OPTION = "📘 MRCS"
+FLASH_OPTION = "🧩 Flash Cards"
+
 # =====================================
 # BOT HANDLERS
 # =====================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[
-        InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("🧩 Flash Cards", callback_data="Flash_Cards")
-    ]]
+    # Main menu keyboard
+    keyboard = [[MRCS_OPTION, FLASH_OPTION]]
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        one_time_keyboard=True,
+        resize_keyboard=True
+    )
     await update.message.reply_text(
         WELCOME_TEXT,
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
 
-async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    user_data = context.user_data
 
-    content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
-    context.user_data["content_type"] = content_type
+    # Main menu selection
+    if text == MRCS_OPTION or text == FLASH_OPTION:
+        content_type = "MRCS" if text == MRCS_OPTION else "Flash Cards"
+        user_data["content_type"] = content_type
+        # Build chapter keyboard (1 per row for readability, or 2 if you prefer)
+        keyboard = []
+        for i in range(0, len(CHAPTERS), 2):
+            row = [CHAPTERS[i]]
+            if i + 1 < len(CHAPTERS):
+                row.append(CHAPTERS[i + 1])
+            keyboard.append(row)
+        keyboard.append([BACK_COMMAND])
 
-    # Build chapter buttons (2 per row)
-    keyboard = []
-    for i in range(0, len(CHAPTERS), 2):
-        row = []
-        row.append(InlineKeyboardButton(f"Ch {i+1}", callback_data=f"ch_{i}"))
-        if i + 1 < len(CHAPTERS):
-            row.append(InlineKeyboardButton(f"Ch {i+2}", callback_data=f"ch_{i+1}"))
-        keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_start")])
-    await query.message.reply_text(
-        f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
-    # Do NOT edit — send new message
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*\n\n👇 Tap a chapter below:",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
-async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    # Back to main menu
+    elif text == BACK_COMMAND:
+        keyboard = [[MRCS_OPTION, FLASH_OPTION]]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            "🔙 Back to main menu.\n\n" + WELCOME_TEXT,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
-    idx = int(query.data.split("_")[1])
-    chapter = CHAPTERS[idx]
-    content_type = context.user_data.get("content_type", "Content")
+    # Chapter selected (full name match)
+    elif text in CHAPTERS:
+        content_type = user_data.get("content_type", "Content")
+        chapter = text
 
-    payment_text = f"""💰 *Payment Required*
+        payment_text = f"""💰 *Payment Required*
 
 To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
 
@@ -171,22 +195,26 @@ To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
 @{CHATBOT_USERNAME}
 
 You are ready ✅
-
 🍀 Good luck and enjoy the challenge 🙏"""
 
-    keyboard = [
-        [InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME}")],
-        [InlineKeyboardButton("🔙 Back to Chapters", callback_data="back_chapters")]
-    ]
+        # Send payment instructions (no keyboard — let user contact manually)
+        await update.message.reply_text(payment_text, parse_mode="Markdown")
 
-    await query.message.reply_text(
-        payment_text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
+        # Notify admin
+        await notify_admin(context, update.message.from_user, content_type, chapter)
 
-    # Notify admin
-    await notify_admin(context, query.from_user, content_type, chapter)
+    else:
+        # Unknown input
+        keyboard = [[MRCS_OPTION, FLASH_OPTION]]
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            "❓ I didn't understand that. Please choose an option below:",
+            reply_markup=reply_markup
+        )
 
 async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
     try:
@@ -195,6 +223,7 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
         name = user.first_name or "No name"
 
         admin_message = f"""🆕 New Client Inquiry
+
 👤 Name: {name}
 📱 Username: {username}
 🆔 User ID: {user_id}
@@ -211,53 +240,17 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
     except Exception as e:
         print(f"Admin notification error: {e}")
 
-async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    keyboard = [[
-        InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("🧩 Flash Cards", callback_data="Flash_Cards")
-    ]]
-    await query.message.reply_text(
-        WELCOME_TEXT,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
-
-async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    # Reuse the same logic as content_type_selected but without changing content type
-    content_type = context.user_data.get("content_type", "MRCS")
-    keyboard = []
-    for i in range(0, len(CHAPTERS), 2):
-        row = []
-        row.append(InlineKeyboardButton(f"Ch {i+1}", callback_data=f"ch_{i}"))
-        if i + 1 < len(CHAPTERS):
-            row.append(InlineKeyboardButton(f"Ch {i+2}", callback_data=f"ch_{i+1}"))
-        keyboard.append(row)
-    keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="back_start")])
-
-    await query.message.reply_text(
-        f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
-    )
 # =====================================
 # BOT SETUP
 # =====================================
-def setup_bot():
-    logging.basicConfig(
+def setup_bot():    logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash_Cards)$"))
-    application.add_handler(CallbackQueryHandler(chapter_selected, pattern=r"^ch_\d+$"))
-    application.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
-    application.add_handler(CallbackQueryHandler(back_to_chapters, pattern="^back_chapters$"))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     return application
 
@@ -272,7 +265,7 @@ def main():
     time.sleep(3)
 
     application = setup_bot()
-    print("🤖 Bot is running...")
+    print("🤖 Bot is running with bottom keyboard...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
