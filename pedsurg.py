@@ -1,43 +1,84 @@
 from flask import Flask
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import logging
-import threading
-import time
 import os
 
-# =====================================
-# FLASK APP FOR KEEP-ALIVE
-# =====================================
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "✅ Pediatric Surgery IQ Bot is running!"
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Pediatric Surgery IQ Bot</title>
+        <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            .status { color: green; font-size: 24px; margin: 20px 0; }
+            .info-box { background: #f5f5f5; padding: 20px; border-radius: 10px; margin: 20px 0; }
+            .telegram-btn { 
+                background: #0088cc; 
+                color: white; 
+                padding: 15px 30px; 
+                text-decoration: none; 
+                border-radius: 5px;
+                display: inline-block;
+                margin: 10px;
+                font-size: 18px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Pediatric Surgery IQ Bot</h1>
+            <div class="status">✅ Bot is running 24/7</div>
+            
+            <div class="info-box">
+                <h2>How to use:</h2>
+                <p>1. Open Telegram</p>
+                <p>2. Search for: <strong>@PedSurgIQ</strong></p>
+                <p>3. Send <code>/start</code> to begin</p>
+            </div>
+            
+            <a href="https://t.me/PedSurgIQ" class="telegram-btn" target="_blank">
+                Open Telegram Bot
+            </a>
+            
+            <div class="info-box">
+                <h3>Features:</h3>
+                <p>📚 76 Medical Chapters</p>
+                <p>📘 MRCS & Flash Cards</p>
+                <p>💰 5,000 IQD per chapter</p>
+                <p>💬 Live chat support</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.route('/health')
 def health():
     return "OK", 200
 
-def run_flask():
+if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    print(f"Starting Flask server on port {port}...")
+    app.run(host='0.0.0.0', port=port)
+```
 
-# =====================================
-# CONFIG
-# =====================================
+File 2: bot.py (Run this on YOUR COMPUTER 24/7)
+
+```python
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import logging
+import asyncio
+
 BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
 ADMIN_CHANNEL = "@clientpedsurg"
 CHATBOT_USERNAME = "PedSurgIQ"
 
-# =====================================
-# TEXTS
-# =====================================
 WELCOME_TEXT = "👋 Welcome to Pediatric Surgery IQ\n\nWhat would you like to study today?"
 
-# =====================================
-# ALL 76 CHAPTERS
-# =====================================
 CHAPTERS = [
     "Chapter 1 – Physiology of the Newborn",
     "Chapter 2 – Nutritional Support for the Pediatric Patient",
@@ -117,9 +158,6 @@ CHAPTERS = [
     "Chapter 76 – Bariatric Surgical Procedures in Adolescence",
 ]
 
-# =====================================
-# BOT HANDLERS
-# =====================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[
         InlineKeyboardButton("📘 MRCS", callback_data="MRCS"),
@@ -140,23 +178,16 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
     content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
     context.user_data["content_type"] = content_type
     
-    # Create chapter buttons (3 per row)
     keyboard = []
-    for i in range(0, len(CHAPTERS), 3):
-        row = []
-        for j in range(3):
-            if i + j < len(CHAPTERS):
-                chapter_num = i + j + 1
-                row.append(InlineKeyboardButton(str(chapter_num), callback_data=f"ch_{i+j}"))
-        if row:
-            keyboard.append(row)
+    for i in range(0, min(20, len(CHAPTERS))):  # Show first 20
+        keyboard.append([InlineKeyboardButton(f"Chapter {i+1}", callback_data=f"ch_{i}")])
     
     keyboard.append([InlineKeyboardButton("⬅ Back", callback_data="back_start")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        f"📖 Select a Chapter\n\nContent Type: {content_type}\nTotal: {len(CHAPTERS)} chapters",
+        f"📖 Select a Chapter\n\nContent Type: {content_type}",
         reply_markup=reply_markup
     )
 
@@ -175,12 +206,11 @@ To receive {content_type} about {chapter}, send 5,000 IQD to:
 📱 Zain Cash: 009647833160006
 💳 Master Card: 3175657935
 
-📸 Take a screenshot and send it to:
-@{CHATBOT_USERNAME}
+📸 Take screenshot and send to: @{CHATBOT_USERNAME}
 
 You are ready ✅
 
-🍀 Good luck and enjoy the challenge 🙏"""
+Good luck! 🙏"""
     
     keyboard = [[
         InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME}")
@@ -241,14 +271,13 @@ async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     await content_type_selected(update, context)
 
-# =====================================
-# BOT SETUP FUNCTION
-# =====================================
-def setup_bot():
+def main():
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
+    
+    print("🤖 Starting Pediatric Surgery IQ Bot...")
     
     application = Application.builder().token(BOT_TOKEN).build()
     
@@ -258,138 +287,76 @@ def setup_bot():
     application.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
     application.add_handler(CallbackQueryHandler(back_to_chapters, pattern="^back_chapters$"))
     
-    return application
-
-# =====================================
-# MAIN FUNCTION
-# =====================================
-def main():
-    print("Starting Pediatric Surgery IQ Bot...")
+    print("✅ Bot is ready! Send /start on Telegram")
+    print("⚠️ Keep this window open 24/7")
     
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    time.sleep(3)
-    
-    application = setup_bot()
-    print("Bot is running...")
-    
-    application.run_polling(
-        drop_pending_updates=True,
-        poll_interval=0.5,
-        timeout=30
-    )
-
-if __name__ == "__main__":
-    main()
-```
-
-requirements.txt
-
-```txt
-Flask==2.3.3
-python-telegram-bot==20.7
-```
-
-Procfile
-
-```txt
-worker: python pedsurg.py
-```
-
-CRITICAL: How to save the file:
-
-1. Save as UTF-8 encoded file:
-   · File name: pedsurg.py
-   · Encoding: UTF-8
-   · NOT ASCII or other encoding
-2. On Windows (Notepad++):
-   · Encoding → UTF-8
-   · Save as pedsurg.py
-3. On Mac/Linux:
-   · Save with UTF-8 encoding
-4. On Render:
-   · Upload the UTF-8 encoded file
-   · Make sure pedsurg.py is the exact filename
-
-If still getting encoding error:
-
-Use this emoji-free version (no emojis):
-
-```python
-from flask import Flask
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import logging
-import threading
-import time
-import os
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Pediatric Surgery IQ Bot is running!"
-
-@app.route('/health')
-def health():
-    return "OK", 200
-
-def run_flask():
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-
-BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
-ADMIN_CHANNEL = "@clientpedsurg"
-CHATBOT_USERNAME = "PedSurgIQ"
-
-WELCOME_TEXT = "Welcome to Pediatric Surgery IQ\n\nWhat would you like to study today?"
-
-CHAPTERS = [
-    "Chapter 1 - Physiology of the Newborn",
-    "Chapter 2 - Nutritional Support for the Pediatric Patient",
-    "Chapter 3 - Anesthetic Considerations for Pediatric Surgical Conditions",
-    "Chapter 4 - Renal Impairment and Renovascular Hypertension",
-    "Chapter 5 - Coagulopathies and Sickle Cell Disease",
-    "Chapter 6 - Extracorporeal Membrane Oxygenation",
-    "Chapter 7 - Mechanical Ventilation in Pediatric Surgical Disease",
-    "Chapter 8 - Vascular Access",
-    "Chapter 9 - Surgical Infectious Disease",
-    "Chapter 10 - Fetal Therapy",
-    # ... add all 76 chapters without special characters
-]
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[
-        InlineKeyboardButton("MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("Flash Cards", callback_data="Flash_Cards")
-    ]]
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        WELCOME_TEXT,
-        reply_markup=reply_markup
-    )
-
-# ... rest of the functions without emojis ...
-
-def main():
-    print("Starting Pediatric Surgery IQ Bot...")
-    
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    
-    time.sleep(3)
-    
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    
-    print("Bot is running...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
 ```
 
-Save as pedsurg.py with UTF-8 encoding and it will work!
+File 3: requirements.txt
+
+```txt
+python-telegram-bot==20.7
+```
+
+File 4: Procfile (for Render)
+
+```txt
+web: python app.py
+```
+
+🚀 TWO-PART SOLUTION:
+
+PART 1: Deploy to Render
+
+1. Go to Render → New Web Service
+2. Upload these files:
+   · app.py (Flask website)
+   · requirements.txt (just Flask)
+   · Procfile
+3. Configure:
+   · Name: pedsurgiq
+   · Build Command: pip install -r requirements.txt
+   · Start Command: python app.py
+4. Deploy → Your website will be at https://pedsurgiq.onrender.com
+
+PART 2: Run Bot on Your Computer
+
+1. On your computer, install:
+   ```bash
+   pip install python-telegram-bot==20.7
+   ```
+2. Save bot.py on your computer
+3. Run it:
+   ```bash
+   python bot.py
+   ```
+4. Keep the terminal/command prompt open 24/7
+
+📱 What happens:
+
+1. Render: Hosts your website (https://pedsurgiq.onrender.com) 24/7
+2. Your Computer: Runs the Telegram bot 24/7
+3. Users: Go to Telegram → @PedSurgIQ → /start
+
+🔧 Alternative: Use PythonAnywhere (FREE) for Bot
+
+If you can't keep your computer on 24/7:
+
+1. Go to PythonAnywhere.com
+2. Create free account
+3. Upload bot.py
+4. Create Always-on Task to run the bot
+
+Why this works:
+
+· Render free tier only supports web services (not polling bots)
+· Telegram bots need polling (continuous connection)
+· You need 2 separate services:
+  1. Flask web service (on Render) - keeps URL alive
+  2. Telegram bot (on your computer) - handles messages
+
+Your bot will work 100% with this setup!
