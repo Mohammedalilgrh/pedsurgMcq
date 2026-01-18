@@ -24,7 +24,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 # =====================================
-# CONFIG
+# CONFIGURATION
 # =====================================
 BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
 ADMIN_CHANNEL = "@clientpedsurg"
@@ -36,7 +36,7 @@ CHATBOT_USERNAME = "PedSurgIQ"
 WELCOME_TEXT = "👋 *Welcome to Pediatric Surgery IQ*\n\nWhat would you like to study today?"
 
 # =====================================
-# ALL 76 CHAPTERS
+# ALL 76 CHAPTERS (FULL TITLES)
 # =====================================
 CHAPTERS = [
     "Chapter 1 – Physiology of the Newborn",
@@ -115,17 +115,26 @@ CHAPTERS = [
     "Chapter 76 – Global Pediatric Surgery and Humanitarian Efforts"
 ]
 
+# Special button texts
 BACK_COMMAND = "🔙 Back"
 MRCS_OPTION = "📘 MRCS"
 FLASH_OPTION = "🧩 Flash Cards"
 
 # =====================================
-# HANDLERS
+# TELEGRAM BOT HANDLERS
 # =====================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text(WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        one_time_keyboard=True,
+        resize_keyboard=True
+    )
+    await update.message.reply_text(
+        WELCOME_TEXT,
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -136,85 +145,117 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data["content_type"] = content_type
 
         # Build keyboard with full chapter names (2 per row)
-        keyboard = []
-        for i in range(0, len(CHAPTERS), 2):
+        keyboard = []        for i in range(0, len(CHAPTERS), 2):
             row = [CHAPTERS[i]]
             if i + 1 < len(CHAPTERS):
                 row.append(CHAPTERS[i + 1])
             keyboard.append(row)
         keyboard.append([BACK_COMMAND])
 
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text(            f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*\n\n👇 Tap a chapter below:",
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            f"📚 *Select a Chapter*\n\nContent Type: *{content_type}*\n\n👇 Tap a chapter below:",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
 
     elif text == BACK_COMMAND:
         keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text("🔙 Back to main menu.\n\n" + WELCOME_TEXT, reply_markup=reply_markup, parse_mode="Markdown")
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            "🔙 Back to main menu.\n\n" + WELCOME_TEXT,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
     elif text in CHAPTERS:
         content_type = user_data.get("content_type", "Content")
         chapter = text
 
-        payment_text = f"""💰 *Payment Required*
-
-To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
-
-📱 *Zain Cash:* 009647833160006  
-💳 *Master Card:* 3175657935
-
-📸 Take a screenshot and send it to:
-@{CHATBOT_USERNAME}
-
-You are ready ✅
-
-🍀 Good luck and enjoy the challenge 🙏"""
+        payment_text = (
+            f"💰 *Payment Required*\n\n"
+            f"To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:\n\n"
+            f"📱 *Zain Cash:* 009647833160006\n"
+            f"💳 *Master Card:* 3175657935\n\n"
+            f"📸 Take a screenshot and send it to:\n"
+            f"@{CHATBOT_USERNAME}\n\n"
+            f"You are ready ✅\n\n"
+            f"🍀 Good luck and enjoy the challenge 🙏"
+        )
 
         await update.message.reply_text(payment_text, parse_mode="Markdown")
         await notify_admin(context, update.message.from_user, content_type, chapter)
 
-    else:
+    else:        # Unknown input — show main menu
         keyboard = [[MRCS_OPTION, FLASH_OPTION]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text("❓ Please choose an option below:", reply_markup=reply_markup)
+        reply_markup = ReplyKeyboardMarkup(
+            keyboard,
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+        await update.message.reply_text(
+            "❓ I didn't understand that. Please choose an option below:",
+            reply_markup=reply_markup
+        )
 
 async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
     try:
         user_id = user.id
         username = f"@{user.username}" if user.username else "No username"
         name = user.first_name or "No name"
-        admin_message = f"""🆕 New Client Inquiry
 
-👤 Name: {name}
-📱 Username: {username}
-🆔 User ID: {user_id}
-📚 Type: {content_type}
-📖 Chapter: {chapter}
+        admin_message = (
+            f"🆕 New Client Inquiry\n\n"
+            f"👤 Name: {name}\n"
+            f"📱 Username: {username}\n"
+            f"🆔 User ID: {user_id}\n"
+            f"📚 Type: {content_type}\n"
+            f"📖 Chapter: {chapter}\n\n"
+            f"💬 [Chat with Client](tg://user?id={user_id})"
+        )
 
-💬 [Chat with Client](tg://user?id={user_id})"""        await context.bot.send_message(chat_id=ADMIN_CHANNEL, text=admin_message, parse_mode="Markdown")
+        await context.bot.send_message(
+            chat_id=ADMIN_CHANNEL,
+            text=admin_message,
+            parse_mode="Markdown"
+        )
     except Exception as e:
         print(f"Admin notification error: {e}")
 
 # =====================================
-# SETUP & RUN
+# BOT SETUP
 # =====================================
 def setup_bot():
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     return application
 
+# =====================================# MAIN ENTRY POINT
+# =====================================
 def main():
     print("🚀 Starting Pediatric Surgery IQ Bot...")
+
+    # Start Flask keep-alive server in background
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
-    time.sleep(3)
+    time.sleep(2)
+
+    # Start Telegram bot
     application = setup_bot()
-    print("🤖 Bot is running with bottom keyboard...")
+    print("🤖 Bot is running with bottom reply keyboard...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
