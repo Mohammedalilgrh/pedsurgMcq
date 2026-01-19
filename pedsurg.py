@@ -1,6 +1,7 @@
-from flask import Flask, request
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.helpers import Markup
 import logging
 import threading
 import time
@@ -13,7 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "âœ… Pediatric Surgery IQ Bot is running!"
+    return "✅ Pediatric Surgery IQ Bot is running!"
 
 @app.route('/health')
 def health():
@@ -33,42 +34,42 @@ CHATBOT_USERNAME = "PedSurgIQ"
 # =====================================
 # TEXTS
 # =====================================
-WELCOME_TEXT = "ðŸ‘‹ *Welcome to Pediatric Surgery IQ*\n\nWhat would you like to study today?"
+WELCOME_TEXT = "👋 *Welcome to Pediatric Surgery IQ*\n\nWhat would you like to study today?"
 
 # =====================================
-# CHAPTERS (First 20 for demo)
+# CHAPTERS (Full list)
 # =====================================
 CHAPTERS = [
-    "Chapter 1 â€“ Physiology of the Newborn",
-    "Chapter 2 â€“ Nutritional Support for the Pediatric Patient",
-    "Chapter 3 â€“ Anesthetic Considerations for Pediatric Surgical Conditions",
-    "Chapter 4 â€“ Renal Impairment and Renovascular Hypertension",
-    "Chapter 5 â€“ Coagulopathies and Sickle Cell Disease",
-    "Chapter 6 â€“ Extracorporeal Membrane Oxygenation",
-    "Chapter 7 â€“ Mechanical Ventilation in Pediatric Surgical Disease",
-    "Chapter 8 â€“ Vascular Access",
-    "Chapter 9 â€“ Surgical Infectious Disease",
-    "Chapter 10 â€“ Fetal Therapy",
-    "Chapter 11 â€“ Ingestion of Foreign Bodies",
-    "Chapter 12 â€“ Bites",
-    "Chapter 13 â€“ Burns",
-    "Chapter 14 â€“ Early Assessment and Management of Trauma",
-    "Chapter 15 â€“ Thoracic Trauma",
-    "Chapter 16 â€“ Abdominal and Renal Trauma",
-    "Chapter 17 â€“ Traumatic Brain Injury",
-    "Chapter 18 â€“ Pediatric Orthopedic Trauma",
-    "Chapter 19 â€“ Neurosurgical Conditions",
-    "Chapter 20 â€“ Chest Wall Deformities"
+    "Chapter 1 – Physiology of the Newborn",
+    "Chapter 2 – Nutritional Support for the Pediatric Patient",
+    "Chapter 3 – Anesthetic Considerations for Pediatric Surgical Conditions",
+    "Chapter 4 – Renal Impairment and Renovascular Hypertension",
+    "Chapter 5 – Coagulopathies and Sickle Cell Disease",
+    "Chapter 6 – Extracorporeal Membrane Oxygenation",
+    "Chapter 7 – Mechanical Ventilation in Pediatric Surgical Disease",
+    "Chapter 8 – Vascular Access",
+    "Chapter 9 – Surgical Infectious Disease",
+    "Chapter 10 – Fetal Therapy",
+    "Chapter 11 – Ingestion of Foreign Bodies",
+    "Chapter 12 – Bites",
+    "Chapter 13 – Burns",
+    "Chapter 14 – Early Assessment and Management of Trauma",
+    "Chapter 15 – Thoracic Trauma",
+    "Chapter 16 – Abdominal and Renal Trauma",
+    "Chapter 17 – Traumatic Brain Injury",
+    "Chapter 18 – Pediatric Orthopedic Trauma",
+    "Chapter 19 – Neurosurgical Conditions",
+    "Chapter 20 – Chest Wall Deformities"
 ]
 
 # =====================================
 # BOT HANDLERS
 # =====================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[
-        InlineKeyboardButton("ðŸ“˜ MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("ðŸ§  Flash Cards", callback_data="Flash_Cards")
-    ]]
+    keyboard = Markup.row(
+        InlineKeyboardButton("🔍 MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("📚 Flash Cards", callback_data="Flash_Cards")
+    )
     
     await update.message.reply_text(
         WELCOME_TEXT,
@@ -83,20 +84,22 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
     content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
     context.user_data["content_type"] = content_type
     
-    # Create chapter buttons (2 per row)
-    keyboard = []
+    # Create chapter buttons (2 per row) using Markup.row
+    keyboard_rows = []
     for i in range(0, len(CHAPTERS), 2):
-        row = []
-        row.append(InlineKeyboardButton(f"Ch {i+1}", callback_data=f"ch_{i}"))
-        if i+1 < len(CHAPTERS):
-            row.append(InlineKeyboardButton(f"Ch {i+2}", callback_data=f"ch_{i+1}"))
-        keyboard.append(row)
+        buttons = [
+            InlineKeyboardButton(f"Ch {i+1}", callback_data=f"ch_{i}")
+        ]
+        if i + 1 < len(CHAPTERS):
+            buttons.append(InlineKeyboardButton(f"Ch {i+2}", callback_data=f"ch_{i+1}"))
+        keyboard_rows.append(Markup.row(*buttons))
     
-    keyboard.append([InlineKeyboardButton("â¬… Back", callback_data="back_start")])
+    # Add back button as a separate row
+    keyboard_rows.append(Markup.row(InlineKeyboardButton("↩️ Back", callback_data="back_start")))
     
     await query.edit_message_text(
-        f"ðŸ“– *Select a Chapter*\n\nContent Type: *{content_type}*",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        f"📖 *Select a Chapter*\n\nContent Type: *{content_type}*",
+        reply_markup=InlineKeyboardMarkup(keyboard_rows),
         parse_mode="Markdown"
     )
 
@@ -108,27 +111,24 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chapter = CHAPTERS[idx]
     content_type = context.user_data.get("content_type", "Content")
     
-    # Payment text
-    payment_text = f"""ðŸ’³ *Payment Required*
+    payment_text = f"""💳 *Payment Required*
 
 To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:
 
-ðŸ“± *Zain Cash:* 009647833160006
-ðŸ’³ *Master Card:* 3175657935
+📞 *Zain Cash:* 009647833160006
+💳 *Master Card:* 3175657935
 
-ðŸ“¸ Take a screenshot and send it to:
+📸 Take a screenshot and send it to:
 @{CHATBOT_USERNAME}
 
-You are ready âœ…
+You are ready ✅
 
-ðŸ€ Good luck and enjoy the challenge ðŸ™"""
+🍀 Good luck and enjoy the challenge 👏"""
     
-    # Keyboard with direct chat button
-    keyboard = [[
-        InlineKeyboardButton("ðŸ’¬ Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME}")
-    ], [
-        InlineKeyboardButton("â¬… Back to Chapters", callback_data="back_chapters")
-    ]]
+    keyboard = [
+        Markup.row(InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME}")),
+        Markup.row(InlineKeyboardButton("↩️ Back to Chapters", callback_data="back_chapters"))
+    ]
     
     await query.edit_message_text(
         payment_text,
@@ -136,7 +136,7 @@ You are ready âœ…
         parse_mode="Markdown"
     )
     
-    # Notify admin
+    # Notify admin asynchronously
     await notify_admin(context, query.from_user, content_type, chapter)
 
 async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: str, chapter: str):
@@ -145,15 +145,15 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
         username = f"@{user.username}" if user.username else "No username"
         name = user.first_name or "No name"
         
-        admin_message = f"""ðŸ†• New Client Inquiry
+        admin_message = f"""📩 New Client Inquiry
 
-ðŸ‘¤ Name: {name}
-ðŸ“± Username: {username}
-ðŸ†” User ID: {user_id}
-ðŸ“š Type: {content_type}
-ðŸ“– Chapter: {chapter}
+👤 Name: {name}
+🔗 Username: {username}
+🆔 User ID: {user_id}
+📚 Type: {content_type}
+📖 Chapter: {chapter}
 
-ðŸ’¬ [Chat with Client](tg://user?id={user_id})"""
+💬 [Chat with Client](tg://user?id={user_id})"""
         
         await context.bot.send_message(
             chat_id=ADMIN_CHANNEL,
@@ -167,10 +167,10 @@ async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[
-        InlineKeyboardButton("ðŸ“˜ MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("ðŸ§  Flash Cards", callback_data="Flash_Cards")
-    ]]
+    keyboard = Markup.row(
+        InlineKeyboardButton("🔍 MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("📚 Flash Cards", callback_data="Flash_Cards")
+    )
     
     await query.edit_message_text(
         WELCOME_TEXT,
@@ -192,10 +192,8 @@ def setup_bot():
         level=logging.INFO
     )
     
-    # Create bot
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(content_type_selected, pattern="^(MRCS|Flash_Cards)$"))
     application.add_handler(CallbackQueryHandler(chapter_selected, pattern="^ch_"))
@@ -208,18 +206,15 @@ def setup_bot():
 # MAIN FUNCTION
 # =====================================
 def main():
-    print("ðŸš€ Starting Pediatric Surgery IQ Bot...")
+    print("🚀 Starting Pediatric Surgery IQ Bot...")
     
-    # Start Flask in background thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # Wait for Flask to start
     time.sleep(3)
     
-    # Setup and run bot
     application = setup_bot()
-    print("ðŸ¤– Bot is running...")
+    print("🤖 Bot is running...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
