@@ -16,7 +16,7 @@ load_dotenv()
 # CONFIG
 # =====================================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY)
 ADMIN_CHANNEL = os.getenv("ADMIN_CHANNEL", "@clientpedsurg")  # Your admin channel
 CHATBOT_USERNAME = os.getenv("CHATBOT_USERNAME", "@PedSurgIQ")  # Your chatbot username for direct chat
 
