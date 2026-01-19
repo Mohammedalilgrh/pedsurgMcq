@@ -102,7 +102,7 @@ CHAPTERS = [
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start with TWO buttons"""
     keyboard = [
-        [InlineKeyboardButton("📘 MRCS", callback_data="type_MRCS_0")],
+        [InlineKeyboardButton("📘 MCQs", callback_data="type_MCQs_0")],
         [InlineKeyboardButton("🧠 Flash Cards", callback_data="type_Flash_0")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -168,7 +168,7 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"To receive *{content_type}* materials for:\n*{chapter}*\n\n"
         f"Send *5,000 IQD* to:\n\n"
         f"📲 *Zain Cash:* 009647833160006\n"
-        f"💳 *Master Card:* 3175657935\n\n"
+        f"💳 *Master Card:* 2058473725\n\n"
         f"📸 Take a screenshot and send it to our chatbot:\n👇🏽"
     )
     
