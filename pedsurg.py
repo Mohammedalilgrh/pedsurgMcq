@@ -1,5 +1,5 @@
 # =====================================
-# Pediatric Surgery IQ â€“ Marketing Bot
+# Pediatric Surgery IQ - Marketing Bot
 # =====================================
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,33 +7,37 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 import logging
 import os
 import asyncio
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # =====================================
 # CONFIG
 # =====================================
 
-BOT_TOKEN = "8408158472:AAHbXpv2WJeubnkdlKJ6CMSV4zA4G54X-gY"
-ADMIN_CHANNEL = "@clientpedsurg"  # Your admin channel
-CHATBOT_USERNAME = "@PedSurgIQ"  # Your chatbot username for direct chat
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+ADMIN_CHANNEL = os.getenv("ADMIN_CHANNEL", "@clientpedsurg")  # Your admin channel
+CHATBOT_USERNAME = os.getenv("CHATBOT_USERNAME", "@PedSurgIQ")  # Your chatbot username for direct chat
 
 # =====================================
 # TEXTS
 # =====================================
 
 WELCOME_TEXT = (
-    "ðŸ‘‹ *Welcome to Pediatric Surgery IQ*\n\n"
+    "👋 *Welcome to Pediatric Surgery IQ*\n\n"
     "What would you like to study today?"
 )
 
 PAYMENT_TEXT = (
-    "ðŸ’³ *Payment Required*\n\n"
+    "💰 *Payment Required*\n\n"
     "To receive *{content_type}* about *{chapter}*, send *5,000 IQD* to:\n\n"
-    "ðŸ“± *Zain Cash:* 009647833160006\n"
-    "ðŸ’³ *Master Card:* 3175657935\n\n"
-    "ðŸ“¸ Take a screenshot and send it to our chatbot:\n"
+    "📱 *Zain Cash:* 009647833160006\n"
+    "💳 *Master Card:* 3175657935\n\n"
+    "📸 Take a screenshot and send it to our chatbot:\n"
     f"{CHATBOT_USERNAME}\n\n"
-    "You are ready âœ…\n\n"
-    "ðŸ€ Good luck and enjoy the challenge ðŸ™"
+    "You are ready ✅\n\n"
+    "🍀 Good luck and enjoy the challenge 🚀"
 )
 
 # =====================================
@@ -41,80 +45,80 @@ PAYMENT_TEXT = (
 # =====================================
 
 CHAPTERS = [
-    "Chapter 1 â€“ Physiology of the Newborn",
-    "Chapter 2 â€“ Nutritional Support for the Pediatric Patient",
-    "Chapter 3 â€“ Anesthetic Considerations for Pediatric Surgical Conditions",
-    "Chapter 4 â€“ Renal Impairment and Renovascular Hypertension",
-    "Chapter 5 â€“ Coagulopathies and Sickle Cell Disease",
-    "Chapter 6 â€“ Extracorporeal Membrane Oxygenation",
-    "Chapter 7 â€“ Mechanical Ventilation in Pediatric Surgical Disease",    "Chapter 8 â€“ Vascular Access",
-    "Chapter 9 â€“ Surgical Infectious Disease",
-    "Chapter 10 â€“ Fetal Therapy",
-    "Chapter 11 â€“ Ingestion of Foreign Bodies",
-    "Chapter 12 â€“ Bites",
-    "Chapter 13 â€“ Burns",
-    "Chapter 14 â€“ Early Assessment and Management of Trauma",
-    "Chapter 15 â€“ Thoracic Trauma",
-    "Chapter 16 â€“ Abdominal and Renal Trauma",
-    "Chapter 17 â€“ Traumatic Brain Injury",
-    "Chapter 18 â€“ Pediatric Orthopedic Trauma",
-    "Chapter 19 â€“ Neurosurgical Conditions",
-    "Chapter 20 â€“ Chest Wall Deformities",
-    "Chapter 21 â€“ Management of Laryngotracheal Obstruction in Children",
-    "Chapter 22 â€“ Congenital Bronchopulmonary Malformations",
-    "Chapter 23 â€“ Acquired Lesions of the Lung and Pleura",
-    "Chapter 24 â€“ Congenital Diaphragmatic Hernia and Eventration",
-    "Chapter 25 â€“ Mediastinal Tumors",
-    "Chapter 26 â€“ The Esophagus",
-    "Chapter 27 â€“ Esophageal Atresia and Tracheoesophageal Fistula",
-    "Chapter 28 â€“ Gastroesophageal Reflux",
-    "Chapter 29 â€“ Lesions of the Stomach",
-    "Chapter 30 â€“ Duodenal and Intestinal Atresia and Stenosis",
-    "Chapter 31 â€“ Malrotation",
-    "Chapter 32 â€“ Meconium Disease",
-    "Chapter 33 â€“ Necrotizing Enterocolitis",
-    "Chapter 34 â€“ Hirschsprung Disease",
-    "Chapter 35 â€“ Anorectal Atresia and Cloacal Malformations",
-    "Chapter 36 â€“ Fecal Incontinence and Constipation",
-    "Chapter 37 â€“ Acquired Anorectal Disorders",
-    "Chapter 38 â€“ Intussusception",
-    "Chapter 39 â€“ Alimentary Tract Duplications",
-    "Chapter 40 â€“ Meckel Diverticulum",
-    "Chapter 41 â€“ Inflammatory Bowel Disease",
-    "Chapter 42 â€“ Appendicitis",
-    "Chapter 43 â€“ Biliary Atresia",
-    "Chapter 44 â€“ Choledochal Cyst and Gallbladder Disease",
-    "Chapter 45 â€“ Solid Organ Transplantation in Children",
-    "Chapter 46 â€“ Lesions of the Pancreas",
-    "Chapter 47 â€“ Splenic Conditions",
-    "Chapter 48 â€“ Congenital Abdominal Wall Defects",
-    "Chapter 49 â€“ Umbilical and Other Abdominal Wall Hernias",
-    "Chapter 50 â€“ Inguinal Hernia",
-    "Chapter 51 â€“ Undescended Testes and Testicular Tumors",
-    "Chapter 52 â€“ The Acute Scrotum",
-    "Chapter 53 â€“ Developmental and Positional Anomalies of the Kidneys",
-    "Chapter 54 â€“ Ureteral Obstruction and Malformations",
-    "Chapter 55 â€“ Urinary Tract Infections and Vesicoureteral Reflux",
-    "Chapter 56 â€“ Bladder and Urethra",
-    "Chapter 57 â€“ Posterior Urethral Valves",    "Chapter 58 â€“ Bladder and Cloacal Exstrophy",
-    "Chapter 59 â€“ Hypospadias",
-    "Chapter 60 â€“ Circumcision",
-    "Chapter 61 â€“ Prune Belly Syndrome",
-    "Chapter 62 â€“ Differences of Sexual Development",
-    "Chapter 63 â€“ Principles of Adjuvant Therapy in Childhood Cancer",
-    "Chapter 64 â€“ Renal Tumors",
-    "Chapter 65 â€“ Neuroblastoma",
-    "Chapter 66 â€“ Lesions of the Liver",
-    "Chapter 67 â€“ Teratomas, Dermoids, and Soft Tissue Tumors",
-    "Chapter 68 â€“ Lymphomas",
-    "Chapter 69 â€“ Rhabdomyosarcoma",
-    "Chapter 70 â€“ Nevus and Melanoma",
-    "Chapter 71 â€“ Vascular Anomalies",
-    "Chapter 72 â€“ Head and Neck Sinuses and Masses",
-    "Chapter 73 â€“ Pediatric and Adolescent Gynecology",
-    "Chapter 74 â€“ Breast Diseases",
-    "Chapter 75 â€“ Endocrine Disorders and Tumors",
-    "Chapter 76 â€“ Bariatric Surgical Procedures in Adolescence",
+    "Chapter 1 - Physiology of the Newborn",
+    "Chapter 2 - Nutritional Support for the Pediatric Patient",
+    "Chapter 3 - Anesthetic Considerations for Pediatric Surgical Conditions",    "Chapter 4 - Renal Impairment and Renovascular Hypertension",
+    "Chapter 5 - Coagulopathies and Sickle Cell Disease",
+    "Chapter 6 - Extracorporeal Membrane Oxygenation",
+    "Chapter 7 - Mechanical Ventilation in Pediatric Surgical Disease",
+    "Chapter 8 - Vascular Access",
+    "Chapter 9 - Surgical Infectious Disease",
+    "Chapter 10 - Fetal Therapy",
+    "Chapter 11 - Ingestion of Foreign Bodies",
+    "Chapter 12 - Bites",
+    "Chapter 13 - Burns",
+    "Chapter 14 - Early Assessment and Management of Trauma",
+    "Chapter 15 - Thoracic Trauma",
+    "Chapter 16 - Abdominal and Renal Trauma",
+    "Chapter 17 - Traumatic Brain Injury",
+    "Chapter 18 - Pediatric Orthopedic Trauma",
+    "Chapter 19 - Neurosurgical Conditions",
+    "Chapter 20 - Chest Wall Deformities",
+    "Chapter 21 - Management of Laryngotracheal Obstruction in Children",
+    "Chapter 22 - Congenital Bronchopulmonary Malformations",
+    "Chapter 23 - Acquired Lesions of the Lung and Pleura",
+    "Chapter 24 - Congenital Diaphragmatic Hernia and Eventration",
+    "Chapter 25 - Mediastinal Tumors",
+    "Chapter 26 - The Esophagus",
+    "Chapter 27 - Esophageal Atresia and Tracheoesophageal Fistula",
+    "Chapter 28 - Gastroesophageal Reflux",
+    "Chapter 29 - Lesions of the Stomach",
+    "Chapter 30 - Duodenal and Intestinal Atresia and Stenosis",
+    "Chapter 31 - Malrotation",
+    "Chapter 32 - Meconium Disease",
+    "Chapter 33 - Necrotizing Enterocolitis",
+    "Chapter 34 - Hirschsprung Disease",
+    "Chapter 35 - Anorectal Atresia and Cloacal Malformations",
+    "Chapter 36 - Fecal Incontinence and Constipation",
+    "Chapter 37 - Acquired Anorectal Disorders",
+    "Chapter 38 - Intussusception",
+    "Chapter 39 - Alimentary Tract Duplications",
+    "Chapter 40 - Meckel Diverticulum",
+    "Chapter 41 - Inflammatory Bowel Disease",
+    "Chapter 42 - Appendicitis",
+    "Chapter 43 - Biliary Atresia",
+    "Chapter 44 - Choledochal Cyst and Gallbladder Disease",
+    "Chapter 45 - Solid Organ Transplantation in Children",
+    "Chapter 46 - Lesions of the Pancreas",
+    "Chapter 47 - Splenic Conditions",
+    "Chapter 48 - Congenital Abdominal Wall Defects",
+    "Chapter 49 - Umbilical and Other Abdominal Wall Hernias",
+    "Chapter 50 - Inguinal Hernia",
+    "Chapter 51 - Undescended Testes and Testicular Tumors",
+    "Chapter 52 - The Acute Scrotum",
+    "Chapter 53 - Developmental and Positional Anomalies of the Kidneys",    "Chapter 54 - Ureteral Obstruction and Malformations",
+    "Chapter 55 - Urinary Tract Infections and Vesicoureteral Reflux",
+    "Chapter 56 - Bladder and Urethra",
+    "Chapter 57 - Posterior Urethral Valves",
+    "Chapter 58 - Bladder and Cloacal Exstrophy",
+    "Chapter 59 - Hypospadias",
+    "Chapter 60 - Circumcision",
+    "Chapter 61 - Prune Belly Syndrome",
+    "Chapter 62 - Differences of Sexual Development",
+    "Chapter 63 - Principles of Adjuvant Therapy in Childhood Cancer",
+    "Chapter 64 - Renal Tumors",
+    "Chapter 65 - Neuroblastoma",
+    "Chapter 66 - Lesions of the Liver",
+    "Chapter 67 - Teratomas, Dermoids, and Soft Tissue Tumors",
+    "Chapter 68 - Lymphomas",
+    "Chapter 69 - Rhabdomyosarcoma",
+    "Chapter 70 - Nevus and Melanoma",
+    "Chapter 71 - Vascular Anomalies",
+    "Chapter 72 - Head and Neck Sinuses and Masses",
+    "Chapter 73 - Pediatric and Adolescent Gynecology",
+    "Chapter 74 - Breast Diseases",
+    "Chapter 75 - Endocrine Disorders and Tumors",
+    "Chapter 76 - Bariatric Surgical Procedures in Adolescence",
 ]
 
 # =====================================
@@ -125,8 +129,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - Single row with both options"""
     markup = InlineKeyboardMarkup(row_width=2)
     markup.row(
-        InlineKeyboardButton("ðŸ“˜ MRCS", callback_data="MRCS"),
-        InlineKeyboardButton("ðŸ§  Flash Cards", callback_data="Flash_Cards")
+        InlineKeyboardButton("📚 MRCS", callback_data="MRCS"),
+        InlineKeyboardButton("📝 Flash Cards", callback_data="Flash_Cards")
     )
     
     # Check if it's a message or callback query
@@ -142,10 +146,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=markup,
             parse_mode="Markdown"
         )
-
 async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle when user selects MRCS or Flash Cards"""
-    query = update.callback_query    await query.answer()
+    query = update.callback_query
+    await query.answer()
     
     # Store selected content type
     content_type = "MRCS" if query.data == "MRCS" else "Flash Cards"
@@ -165,11 +169,11 @@ async def content_type_selected(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Add navigation buttons
     markup.row(
-        InlineKeyboardButton("â¬… Back", callback_data="back_start")
+        InlineKeyboardButton("🔙 Back", callback_data="back_start")
     )
     
     await query.edit_message_text(
-        f"ðŸ“– *Select a Chapter*\n\n"
+        f"📖 *Select a Chapter*\n\n"
         f"Content Type: *{content_type}*\n"
         f"Total Chapters: *{len(CHAPTERS)}*\n\n"
         f"_Click on a chapter number to select:_",
@@ -190,13 +194,13 @@ async def chapter_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Store chapter info
     context.user_data["chapter"] = chapter
     context.user_data["chapter_index"] = idx
-    
-    # Create keyboard with chat button that opens direct chat
+        # Create keyboard with chat button that opens direct chat
     markup = InlineKeyboardMarkup(row_width=1)
     markup.row(
-        InlineKeyboardButton("ðŸ’¬ Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME[1:]}")    )
+        InlineKeyboardButton("💬 Chat with Admin", url=f"https://t.me/{CHATBOT_USERNAME[1:]}")
+    )
     markup.row(
-        InlineKeyboardButton("â¬… Back to Chapters", callback_data="back_chapters")
+        InlineKeyboardButton("🔙 Back to Chapters", callback_data="back_chapters")
     )
     
     # Send payment instructions
@@ -219,14 +223,14 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
         full_name = f"{first_name} {last_name}".strip() or "No name"
         
         admin_message = (
-            "ðŸ†• *New Client Inquiry*\n\n"
-            f"ðŸ‘¤ *Name:* {full_name}\n"
-            f"ðŸ“± *Username:* {username}\n"
-            f"ðŸ†” *User ID:* `{user_id}`\n"
-            f"ðŸ“š *Content Type:* {content_type}\n"
-            f"ðŸ“– *Chapter:* {chapter}\n\n"
-            f"ðŸ’¬ [Click to Chat with Client](tg://user?id={user_id})\n"
-            f"ðŸ¤– [Go to Chatbot](https://t.me/{CHATBOT_USERNAME[1:]})"
+            "🔔 *New Client Inquiry*\n\n"
+            f"👤 *Name:* {full_name}\n"
+            f"👥 *Username:* {username}\n"
+            f"🆔 *User ID:* `{user_id}`\n"
+            f"📚 *Content Type:* {content_type}\n"
+            f"📖 *Chapter:* {chapter}\n\n"
+            f"💬 [Click to Chat with Client](tg://user?id={user_id})\n"
+            f"🔗 [Go to Chatbot](https://t.me/{CHATBOT_USERNAME[1:]})"
         )
         
         await context.bot.send_message(
@@ -239,11 +243,11 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, user, content_type: s
     except Exception as e:
         logging.error(f"Failed to send admin notification: {e}")
 
-async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle back to start button"""
+async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):    """Handle back to start button"""
     query = update.callback_query
     await query.answer()
     await start(update, context)
+
 async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle back to chapters button"""
     query = update.callback_query
@@ -253,7 +257,7 @@ async def back_to_chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     help_text = (
-        "ðŸ¤– *Pediatric Surgery IQ Bot Help*\n\n"
+        "🛠️ *Pediatric Surgery IQ Bot Help*\n\n"
         "*/start* - Start the bot and choose content type\n"
         "*/help* - Show this help message\n\n"
         "*How to use:*\n"
@@ -277,7 +281,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if update and update.callback_query:
             await update.callback_query.message.reply_text(
-                "âš ï¸ An error occurred. Please try again with /start",
+                "⚠️ An error occurred. Please try again with /start",
                 parse_mode="Markdown"
             )
     except:
@@ -288,10 +292,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # =====================================
 
 async def keep_alive():
-    """Simple keep-alive function for Render"""
-    # This function doesn't do anything but keeps the bot running
+    """Simple keep-alive function for Render"""    # This function doesn't do anything but keeps the bot running
     while True:
         await asyncio.sleep(300)  # Sleep for 5 minutes
+
 # =====================================
 # MAIN FUNCTION
 # =====================================
@@ -338,9 +342,9 @@ def main():
 # =====================================
 # SIMPLE WEB SERVER FOR KEEP-ALIVE
 # =====================================
-
 from aiohttp import web
 import threading
+
 async def handle_health_check(request):
     """Handle health check requests"""
     return web.Response(text="Pediatric Surgery IQ Bot is running!")
